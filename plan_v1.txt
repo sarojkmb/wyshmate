@@ -1,0 +1,158 @@
+WYSHMATE — PHASE 0 MVP BUILD DOCUMENT
+🧠 Product Name
+Wyshmate
+
+🎯 Objective
+Build a minimal web app where users create a celebration board, share a link, and others add text wishes.
+
+❗ Scope
+✅ Included
+Create board
+
+Share link
+
+Add text message
+
+View messages
+
+❌ Not Included
+Authentication
+
+Video/audio
+
+AI
+
+Payments
+
+Notifications
+
+🧩 User Flows
+Create Board
+Click “Create Board”
+
+Enter occasion, recipient name, optional title
+
+Generate public + admin link
+
+Redirect to board
+
+Share
+Copy public link
+
+Send to others
+
+Add Message
+Enter name + message
+
+Submit
+
+Message appears
+
+🖥️ Screens
+Landing Page
+Headline: “Create meaningful group wishes in seconds”
+
+CTA: Create a Board
+
+Create Board Page
+Fields:
+
+Occasion (dropdown)
+
+Recipient Name
+
+Title (optional)
+
+Board Page
+Header
+“Happy Birthday John 🎉”
+
+Share Section
+Public link (copy)
+
+Admin link (copy)
+
+Add Message
+Name
+
+Message
+
+Submit button
+
+Messages List
+Simple cards
+
+Name + message
+
+🗄️ Database
+boards
+id (UUID)
+
+title
+
+occasion
+
+recipient_name
+
+admin_token
+
+created_at
+
+messages
+id (UUID)
+
+board_id
+
+author_name
+
+content
+
+created_at
+
+🔗 APIs
+POST /boards
+Create board
+
+GET /boards/{id}
+Get board
+
+POST /boards/{id}/messages
+Add message
+
+GET /boards/{id}/messages
+List messages
+
+🔐 Access Model
+Public link → view + add messages
+
+Admin link → reserved for future
+
+⚙️ Tech Stack
+Frontend: Next.js
+Backend: Spring Boot (Java)
+Database: PostgreSQL
+
+🚀 Deployment
+Frontend → Vercel
+Backend → Render / Railway
+DB → Neon / Supabase
+
+🎯 Success Metrics
+5+ boards created
+
+3+ messages per board
+
+Users share links
+
+⚠️ Rules
+No extra features
+
+No auth
+
+No overdesign
+
+Focus on working flow
+
+🧠 Final Instruction
+Build a minimal, working product. Focus only on create → share → contribute → view flow.
+
