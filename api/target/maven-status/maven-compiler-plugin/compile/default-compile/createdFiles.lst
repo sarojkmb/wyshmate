@@ -1,8 +1,11 @@
 com/wyshmate/api/controller/BoardController.class
+com/wyshmate/api/controller/BoardController$PublicBoardResponse.class
 com/wyshmate/api/repository/BoardRepository.class
 com/wyshmate/api/entity/Message.class
 com/wyshmate/api/entity/Board.class
+com/wyshmate/api/controller/BoardController$AdminBoardResponse.class
 com/wyshmate/api/controller/BoardController$CreateMessageRequest.class
 com/wyshmate/api/repository/MessageRepository.class
+com/wyshmate/api/controller/BoardController$CreateBoardResponse.class
 com/wyshmate/api/controller/BoardController$CreateBoardRequest.class
 com/wyshmate/api/WyshmateApiApplication.class
