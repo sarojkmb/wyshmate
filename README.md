@@ -12,15 +12,14 @@ A minimal web app for creating celebration boards where users can share a link a
 ## Tech Stack
 
 - **Frontend**: Next.js (TypeScript, Tailwind CSS)
-- **Backend**: Spring Boot (Java 17, Spring Data JPA)
+- **Backend**: FastAPI (Python, SQLAlchemy)
 - **Database**: PostgreSQL
 
 ## Prerequisites
 
-- Java 17
+- Python 3.9+
 - Node.js
 - PostgreSQL (running locally)
-- Maven
 
 ## Setup
 
@@ -33,15 +32,17 @@ A minimal web app for creating celebration boards where users can share a link a
    - Ensure PostgreSQL is running
    - Create the database:
      ```
-     psql -U postgres -c "CREATE DATABASE wyshmate;"
+     createdb wyshmate
      ```
-   - If your PostgreSQL credentials differ, update `api/src/main/resources/application.properties`
+   - If your PostgreSQL credentials differ, set `WYSHMATE_DB_HOST`, `WYSHMATE_DB_PORT`, `WYSHMATE_DB_NAME`, `WYSHMATE_DB_USER`, and `WYSHMATE_DB_PASSWORD` before starting the backend.
 
 3. **Build and run the backend**:
    ```
-   cd api
-   mvn clean install
-   mvn spring-boot:run
+   cd backend
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
    ```
    The API will run on `http://localhost:8080`
 
@@ -88,14 +89,15 @@ A minimal web app for creating celebration boards where users can share a link a
 
 ## Development
 
-- Backend uses Spring Boot with JPA for database operations
+- The active backend lives in `backend/` and uses FastAPI with SQLAlchemy
+- The old Java backend remains in `api/` as legacy code until you remove it
 - Frontend uses Next.js with client-side fetching
 - CORS is enabled for development
 
 ## Deployment
 
 - Frontend can be deployed to Vercel
-- Backend can be deployed to Render or Railway
+- Backend can be deployed to Render, Railway, or Fly.io
 - Database can be hosted on Neon or Supabase
 
 ## License
