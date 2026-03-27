@@ -10,6 +10,7 @@ interface Board {
   id: string;
   title: string;
   occasion: string;
+  theme: string;
   recipientName: string;
 }
 
@@ -22,17 +23,28 @@ interface Message {
 
 export default function AnimatedECardPage() {
   const { id } = useParams();
+  const boardId = Array.isArray(id) ? id[0] : id;
   const [board, setBoard] = useState<Board | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!boardId) {
+      return;
+    }
+
+    let cancelled = false;
+
     const load = async () => {
       try {
         const [boardResponse, messagesResponse] = await Promise.all([
-          fetch(`http://localhost:8080/boards/${id}`),
-          fetch(`http://localhost:8080/boards/${id}/messages`),
+          fetch(`http://localhost:8080/boards/${boardId}`),
+          fetch(`http://localhost:8080/boards/${boardId}/messages`),
         ]);
+
+        if (cancelled) {
+          return;
+        }
 
         if (boardResponse.ok) {
           setBoard(await boardResponse.json());
@@ -45,14 +57,22 @@ export default function AnimatedECardPage() {
         }
       } catch (error) {
         console.error('Error loading animated e-card:', error);
-        setBoard(null);
+        if (!cancelled) {
+          setBoard(null);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     load();
-  }, [id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [boardId]);
 
   if (loading) {
     return (
@@ -79,8 +99,8 @@ export default function AnimatedECardPage() {
     );
   }
 
-  const theme = getBoardTheme(board.occasion);
-  const displayTitle = getDisplayTitle(board.title, board.occasion, board.recipientName);
+  const theme = getBoardTheme(board.theme, board.occasion);
+  const displayTitle = getDisplayTitle(board.title, board.theme, board.occasion, board.recipientName);
   const spotlightMessages = messages.length
     ? messages.slice(0, 6)
     : [{

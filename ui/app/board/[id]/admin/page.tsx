@@ -3,13 +3,14 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { getBoardTheme, getDisplayTitle } from '../../../lib/board-theme';
+import { getBoardTheme, getDisplayTitle, themeOptions } from '../../../lib/board-theme';
 import wordmark from '../../../../logo/wyshmate-horizontal.png';
 
 interface Board {
   id: string;
   title: string;
   occasion: string;
+  theme: string;
   recipientName: string;
   adminToken: string;
 }
@@ -53,6 +54,7 @@ const wrapText = (value: string, maxCharsPerLine: number) => {
 
 export default function AdminBoardPage() {
   const { id } = useParams();
+  const boardId = Array.isArray(id) ? id[0] : id;
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
   const [board, setBoard] = useState<Board | null>(null);
@@ -61,48 +63,99 @@ export default function AdminBoardPage() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [downloadingCard, setDownloadingCard] = useState(false);
+  const [themeDraft, setThemeDraft] = useState('');
+  const [updatingTheme, setUpdatingTheme] = useState(false);
 
   useEffect(() => {
-    if (!token) {
+    if (!token || !boardId) {
       setLoading(false);
       return;
     }
 
-    fetchBoard();
-    fetchMessages();
-  }, [id, token]);
+    let cancelled = false;
 
-  const fetchBoard = async () => {
+    const loadBoard = async () => {
+      setLoading(true);
+
+      try {
+        const [boardResponse, messagesResponse] = await Promise.all([
+          fetch(`http://localhost:8080/boards/${boardId}/admin?token=${token}`),
+          fetch(`http://localhost:8080/boards/${boardId}/messages`),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (boardResponse.ok) {
+          const data = await boardResponse.json();
+          setBoard(data);
+          setThemeDraft(data.theme);
+        } else {
+          setBoard(null);
+        }
+
+        if (messagesResponse.ok) {
+          setMessages(await messagesResponse.json());
+        } else {
+          setMessages([]);
+        }
+      } catch (error) {
+        console.error('Error loading admin board:', error);
+        if (!cancelled) {
+          setBoard(null);
+          setMessages([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadBoard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [boardId, token]);
+
+  const handleThemeChange = async (nextTheme: string) => {
+    if (!board) {
+      return;
+    }
+
+    setThemeDraft(nextTheme);
+    setUpdatingTheme(true);
+
     try {
-      const response = await fetch(`http://localhost:8080/boards/${id}/admin?token=${token}`);
+      const response = await fetch(`http://localhost:8080/boards/${boardId}/theme?token=${token}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: nextTheme }),
+      });
+
       if (response.ok) {
-        const data = await response.json();
-        setBoard(data);
-      } else if (response.status === 403) {
-        setBoard(null);
+        const updatedBoard: Board = await response.json();
+        setBoard(updatedBoard);
+        setThemeDraft(updatedBoard.theme);
+      } else {
+        alert('Failed to update theme');
       }
     } catch (error) {
-      console.error('Error fetching admin board:', error);
+      alert('Error updating theme');
+    } finally {
+      setUpdatingTheme(false);
     }
-  };
-
-  const fetchMessages = async () => {
-    try {
-      const response = await fetch(`http://localhost:8080/boards/${id}/messages`);
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data);
-      }
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
-    setLoading(false);
   };
 
   const handleAddMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!boardId) {
+      return;
+    }
     try {
-      const response = await fetch(`http://localhost:8080/boards/${id}/messages`, {
+      const response = await fetch(`http://localhost:8080/boards/${boardId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ authorName, content }),
@@ -110,7 +163,10 @@ export default function AdminBoardPage() {
       if (response.ok) {
         setAuthorName('');
         setContent('');
-        fetchMessages();
+        const messagesResponse = await fetch(`http://localhost:8080/boards/${boardId}/messages`);
+        if (messagesResponse.ok) {
+          setMessages(await messagesResponse.json());
+        }
       } else {
         alert('Failed to add message');
       }
@@ -120,13 +176,13 @@ export default function AdminBoardPage() {
   };
 
   const publicLink =
-    typeof window === 'undefined' ? '' : `${window.location.origin}/board/${id}`;
+    typeof window === 'undefined' ? '' : `${window.location.origin}/board/${boardId}`;
   const animatedCardLink =
-    typeof window === 'undefined' ? '' : `${window.location.origin}/board/${id}/ecard`;
+    typeof window === 'undefined' ? '' : `${window.location.origin}/board/${boardId}/ecard`;
   const adminLink =
     typeof window === 'undefined'
       ? ''
-      : `${window.location.origin}/board/${id}/admin?token=${token}`;
+      : `${window.location.origin}/board/${boardId}/admin?token=${token}`;
 
   const copyText = async (value: string, label: string) => {
     await navigator.clipboard.writeText(value);
@@ -145,7 +201,7 @@ export default function AdminBoardPage() {
     setDownloadingCard(true);
 
     try {
-      const theme = getBoardTheme(board.occasion);
+      const theme = getBoardTheme(board.theme, board.occasion);
       const logoResponse = await fetch(wordmark.src);
       const logoBlob = await logoResponse.blob();
       const logoDataUrl = await new Promise<string>((resolve, reject) => {
@@ -275,8 +331,8 @@ export default function AdminBoardPage() {
     );
   }
 
-  const theme = getBoardTheme(board.occasion);
-  const displayTitle = getDisplayTitle(board.title, board.occasion, board.recipientName);
+  const theme = getBoardTheme(board.theme, board.occasion);
+  const displayTitle = getDisplayTitle(board.title, board.theme, board.occasion, board.recipientName);
 
   return (
     <div className="wyshmate-shell min-h-screen px-4 py-8 sm:px-6 lg:px-8" style={theme.shellStyle}>
@@ -308,86 +364,17 @@ export default function AdminBoardPage() {
               <span>{theme.emoji}</span>
               <span>{theme.description}</span>
             </div>
+            <div
+              className="mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium"
+              style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.18)' }}
+            >
+              <span>{messages.length}</span>
+              <span>{messages.length === 1 ? 'message shared' : 'messages shared'}</span>
+            </div>
           </div>
         </header>
 
-        <div className="mb-8 grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <section className="wyshmate-card rounded-[2rem] p-6 sm:p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: theme.accentStrong }}>
-              Links
-            </p>
-            <h2 className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
-              Manage your board links
-            </h2>
-            <div className="mt-5 space-y-4">
-              <div className="rounded-3xl border border-[var(--border-soft)] bg-white/95 p-4 shadow-sm">
-                <div className="text-sm font-semibold text-[var(--foreground)]">Public link</div>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                  Copy the board link without showing the full URL on screen.
-                </p>
-                <button
-                  onClick={() => copyText(publicLink, 'Public link')}
-                  className="mt-4 inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-semibold text-white transition"
-                  style={{ backgroundColor: theme.accent, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
-                >
-                  Copy Public Link
-                </button>
-              </div>
-
-              <div className="rounded-3xl border border-[var(--border-soft)] bg-[rgba(141,119,185,0.08)] p-4 shadow-sm">
-                <div className="text-sm font-semibold text-[var(--foreground)]">Admin link</div>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                  Keep the private admin URL hidden and copy it only when needed.
-                </p>
-                <button
-                  onClick={() => copyText(adminLink, 'Admin link')}
-                  className="mt-4 inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-semibold text-white transition"
-                  style={{ backgroundColor: theme.accentStrong, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
-                >
-                  Copy Admin Link
-                </button>
-              </div>
-
-              <div className="rounded-3xl border border-[var(--border-soft)] bg-[rgba(243,191,214,0.12)] p-4 shadow-sm">
-                <div className="text-sm font-semibold text-[var(--foreground)]">Downloadable e-card</div>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                  Export all wishes into a branded Wyshmate e-card with the logo, event, and messages.
-                </p>
-                <button
-                  onClick={downloadECard}
-                  disabled={downloadingCard}
-                  className="mt-4 inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
-                  style={{ backgroundColor: theme.accentStrong, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
-                >
-                  {downloadingCard ? 'Preparing e-card...' : 'Download E-card'}
-                </button>
-              </div>
-
-              <div className="rounded-3xl border border-[var(--border-soft)] bg-white/95 p-4 shadow-sm">
-                <div className="text-sm font-semibold text-[var(--foreground)]">Animated e-card</div>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                  Open a clickable animated version and copy its shareable link for guests.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    onClick={() => openLink(animatedCardLink)}
-                    className="inline-flex h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition"
-                    style={{ borderColor: theme.accentSoft, color: theme.accentStrong, backgroundColor: 'white' }}
-                  >
-                    Open Animated Card
-                  </button>
-                  <button
-                    onClick={() => copyText(animatedCardLink, 'Animated e-card link')}
-                    className="inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-semibold text-white transition"
-                    style={{ backgroundColor: theme.accent, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
-                  >
-                    Copy Animated Link
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
+        <div className="mb-8 grid gap-8 lg:grid-cols-[1.08fr_0.92fr]">
           <section className="wyshmate-card rounded-[2rem] p-6 sm:p-8">
             <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: theme.accentStrong }}>
               Contribute
@@ -395,9 +382,6 @@ export default function AdminBoardPage() {
             <h2 className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
               Add a wish
             </h2>
-            <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-              Test the experience yourself or add the first message before sharing.
-            </p>
             <form onSubmit={handleAddMessage} className="mt-6 space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-[var(--foreground)]">
@@ -431,6 +415,119 @@ export default function AdminBoardPage() {
                 Submit Wish
               </button>
             </form>
+          </section>
+
+          <section className="space-y-4">
+            <div
+              className="wyshmate-card rounded-[2rem] p-5 sm:p-6"
+              title="Choose the visual style for the board. This updates the public page, admin page, animated card, and downloaded e-card."
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: theme.accentStrong }}>
+                    Theme
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+                    Board style
+                  </h2>
+                </div>
+                <div
+                  className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]"
+                  style={{ backgroundColor: theme.accentSoft, color: theme.accentStrong }}
+                >
+                  {theme.name}
+                </div>
+              </div>
+              <select
+                value={themeDraft}
+                onChange={(e) => handleThemeChange(e.target.value)}
+                disabled={updatingTheme}
+                title="Pick a visual theme for this board."
+                className="mt-4 h-12 w-full rounded-2xl border border-[var(--border-soft)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {themeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.emoji} {option.label}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-3 text-sm text-[var(--muted)]">
+                {updatingTheme ? 'Updating style...' : 'Hover cards for details'}
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div
+                className="wyshmate-card rounded-[1.75rem] p-5"
+                title="Copy the public board URL to share with guests."
+              >
+                <div className="text-sm font-semibold text-[var(--foreground)]">Public Link</div>
+                <button
+                  onClick={() => copyText(publicLink, 'Public link')}
+                  title="Copy the public board link."
+                  className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-2xl px-4 text-sm font-semibold text-white transition"
+                  style={{ backgroundColor: theme.accent, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
+                >
+                  Copy Public Link
+                </button>
+              </div>
+
+              <div
+                className="wyshmate-card rounded-[1.75rem] p-5"
+                title="Copy the private admin URL for future editing access."
+              >
+                <div className="text-sm font-semibold text-[var(--foreground)]">Admin Link</div>
+                <button
+                  onClick={() => copyText(adminLink, 'Admin link')}
+                  title="Copy the private admin link."
+                  className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-2xl px-4 text-sm font-semibold text-white transition"
+                  style={{ backgroundColor: theme.accentStrong, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
+                >
+                  Copy Admin Link
+                </button>
+              </div>
+
+              <div
+                className="wyshmate-card rounded-[1.75rem] p-5"
+                title="Download a branded e-card snapshot of this board."
+              >
+                <div className="text-sm font-semibold text-[var(--foreground)]">Download Card</div>
+                <button
+                  onClick={downloadECard}
+                  disabled={downloadingCard}
+                  title="Download the branded e-card."
+                  className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-2xl px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
+                  style={{ backgroundColor: theme.accentStrong, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
+                >
+                  {downloadingCard ? 'Preparing...' : 'Download E-card'}
+                </button>
+              </div>
+
+              <div
+                className="wyshmate-card rounded-[1.75rem] p-5"
+                title="Open the animated card or copy its shareable link."
+              >
+                <div className="text-sm font-semibold text-[var(--foreground)]">Animated Card</div>
+                <div className="mt-4 flex flex-col gap-3">
+                  <button
+                    onClick={() => openLink(animatedCardLink)}
+                    title="Open the animated e-card in a new tab."
+                    className="inline-flex h-11 w-full items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition"
+                    style={{ borderColor: theme.accentSoft, color: theme.accentStrong, backgroundColor: 'white' }}
+                  >
+                    Open Animated Card
+                  </button>
+                  <button
+                    onClick={() => copyText(animatedCardLink, 'Animated e-card link')}
+                    title="Copy the animated e-card link."
+                    className="inline-flex h-11 w-full items-center justify-center rounded-2xl px-4 text-sm font-semibold text-white transition"
+                    style={{ backgroundColor: theme.accent, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
+                  >
+                    Copy Animated Link
+                  </button>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
 

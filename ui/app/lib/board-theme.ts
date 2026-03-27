@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 type ThemeStyle = CSSProperties & Record<`--${string}`, string>;
 
 export type BoardTheme = {
-  key: 'birthday' | 'farewell' | 'celebration';
+  key: 'confetti-pop' | 'soft-harbor' | 'golden-glow' | 'midnight-spark';
   name: string;
   emoji: string;
   heroLabel: string;
@@ -17,12 +17,12 @@ export type BoardTheme = {
 };
 
 const themes: Record<BoardTheme['key'], BoardTheme> = {
-  birthday: {
-    key: 'birthday',
-    name: 'Birthday',
+  'confetti-pop': {
+    key: 'confetti-pop',
+    name: 'Confetti Pop',
     emoji: '🎉',
-    heroLabel: 'Birthday board',
-    description: 'Colorful, bright, and a little confetti-coded.',
+    heroLabel: 'Confetti board',
+    description: 'Bright, playful, and perfect for a lively celebration.',
     heroGradient:
       'linear-gradient(135deg, rgba(255, 133, 102, 0.98), rgba(255, 198, 112, 0.96) 48%, rgba(255, 111, 145, 0.94))',
     heroShadow: '0 28px 70px rgba(255, 139, 103, 0.28)',
@@ -43,12 +43,12 @@ const themes: Record<BoardTheme['key'], BoardTheme> = {
       '--theme-bottom': '#fffdf8',
     },
   },
-  farewell: {
-    key: 'farewell',
-    name: 'Farewell',
+  'soft-harbor': {
+    key: 'soft-harbor',
+    name: 'Soft Harbor',
     emoji: '💼',
-    heroLabel: 'Farewell board',
-    description: 'Soft, calm, and warm without feeling too heavy.',
+    heroLabel: 'Harbor board',
+    description: 'Calm, gentle, and ideal for heartfelt goodbyes.',
     heroGradient:
       'linear-gradient(135deg, rgba(110, 143, 153, 0.97), rgba(160, 192, 187, 0.95) 52%, rgba(221, 202, 184, 0.96))',
     heroShadow: '0 28px 70px rgba(118, 146, 150, 0.2)',
@@ -69,12 +69,12 @@ const themes: Record<BoardTheme['key'], BoardTheme> = {
       '--theme-bottom': '#fcfcfa',
     },
   },
-  celebration: {
-    key: 'celebration',
-    name: 'Celebration',
+  'golden-glow': {
+    key: 'golden-glow',
+    name: 'Golden Glow',
     emoji: '✨',
-    heroLabel: 'Celebration board',
-    description: 'Neutral, polished, and ready for almost any moment.',
+    heroLabel: 'Glow board',
+    description: 'Warm, polished, and ready for almost any occasion.',
     heroGradient:
       'linear-gradient(135deg, rgba(86, 95, 122, 0.97), rgba(146, 131, 111, 0.95) 52%, rgba(221, 196, 154, 0.95))',
     heroShadow: '0 28px 70px rgba(110, 102, 101, 0.18)',
@@ -95,32 +95,88 @@ const themes: Record<BoardTheme['key'], BoardTheme> = {
       '--theme-bottom': '#fffdf9',
     },
   },
+  'midnight-spark': {
+    key: 'midnight-spark',
+    name: 'Midnight Spark',
+    emoji: '🌙',
+    heroLabel: 'Midnight board',
+    description: 'Moody, dramatic, and a little more cinematic.',
+    heroGradient:
+      'linear-gradient(135deg, rgba(36, 45, 76, 0.98), rgba(91, 76, 132, 0.96) 50%, rgba(241, 142, 117, 0.92))',
+    heroShadow: '0 28px 70px rgba(52, 48, 95, 0.22)',
+    accent: '#f18e75',
+    accentSoft: 'rgba(241, 142, 117, 0.14)',
+    accentStrong: '#d86e57',
+    shellStyle: {
+      '--theme-card-top': 'rgba(255, 255, 255, 0.9)',
+      '--theme-card-bottom': 'rgba(248, 246, 255, 0.94)',
+      '--theme-card-border': 'rgba(108, 94, 164, 0.18)',
+      '--theme-card-shadow': '0 28px 65px rgba(64, 59, 112, 0.12)',
+      '--theme-orb-a': 'rgba(241, 142, 117, 0.14)',
+      '--theme-orb-b': 'rgba(105, 89, 168, 0.14)',
+      '--theme-radial-a': 'rgba(241, 162, 129, 0.22)',
+      '--theme-radial-b': 'rgba(108, 98, 176, 0.16)',
+      '--theme-top': '#f6f4ff',
+      '--theme-mid': '#faf8ff',
+      '--theme-bottom': '#fffdfb',
+    },
+  },
 };
 
-export const getBoardTheme = (occasion?: string | null): BoardTheme => {
+export const themeOptions: Array<{ value: BoardTheme['key']; label: string; emoji: string }> = [
+  { value: 'confetti-pop', label: 'Confetti Pop', emoji: '🎉' },
+  { value: 'soft-harbor', label: 'Soft Harbor', emoji: '💼' },
+  { value: 'golden-glow', label: 'Golden Glow', emoji: '✨' },
+  { value: 'midnight-spark', label: 'Midnight Spark', emoji: '🌙' },
+];
+
+export const deriveThemeFromOccasion = (occasion?: string | null): BoardTheme['key'] => {
   const normalized = occasion?.trim().toLowerCase();
 
   if (normalized === 'birthday') {
-    return themes.birthday;
+    return 'confetti-pop';
   }
 
   if (normalized === 'farewell') {
-    return themes.farewell;
+    return 'soft-harbor';
   }
 
-  return themes.celebration;
+  return 'golden-glow';
+};
+
+export const getBoardTheme = (theme?: string | null, occasion?: string | null): BoardTheme => {
+  const normalizedTheme = theme?.trim().toLowerCase();
+
+  if (normalizedTheme === 'birthday' || normalizedTheme === 'confetti-pop') {
+    return themes['confetti-pop'];
+  }
+
+  if (normalizedTheme === 'farewell' || normalizedTheme === 'soft-harbor') {
+    return themes['soft-harbor'];
+  }
+
+  if (normalizedTheme === 'celebration' || normalizedTheme === 'golden-glow') {
+    return themes['golden-glow'];
+  }
+
+  if (normalizedTheme === 'midnight-spark') {
+    return themes['midnight-spark'];
+  }
+
+  return themes[deriveThemeFromOccasion(occasion)];
 };
 
 export const getDisplayTitle = (
   title: string | null | undefined,
+  themeValue: string | null | undefined,
   occasion: string | null | undefined,
   recipientName: string | null | undefined,
 ) => {
-  const theme = getBoardTheme(occasion);
+  const theme = getBoardTheme(themeValue, occasion);
   const cleanTitle = title?.trim();
   const cleanRecipient = recipientName?.trim() || 'your person';
   const defaultTitle =
-    theme.key === 'farewell'
+    occasion?.trim().toLowerCase() === 'farewell'
       ? `Wishing ${cleanRecipient} the very best`
       : `Happy ${occasion || theme.name} ${cleanRecipient}!`;
 

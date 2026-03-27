@@ -3,13 +3,14 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getBoardTheme } from '../lib/board-theme';
+import { deriveThemeFromOccasion, getBoardTheme } from '../lib/board-theme';
 import wordmark from '../../logo/wyshmate-horizontal.png';
 
 interface Board {
   id: string;
   title: string;
   occasion: string;
+  theme: string;
   recipientName: string;
   adminToken: string;
 }
@@ -20,7 +21,8 @@ export default function CreateBoard() {
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const selectedTheme = getBoardTheme(occasion);
+  const theme = deriveThemeFromOccasion(occasion);
+  const selectedTheme = getBoardTheme(theme, occasion);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +31,7 @@ export default function CreateBoard() {
       const response = await fetch('http://localhost:8080/boards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, occasion, recipientName }),
+        body: JSON.stringify({ title, occasion, theme, recipientName }),
       });
       if (response.ok) {
         const board: Board = await response.json();
@@ -115,7 +117,10 @@ export default function CreateBoard() {
                 <div className="rounded-2xl border border-[var(--border-soft)] bg-white/90 px-4 py-1 shadow-sm">
                   <select
                     value={occasion}
-                    onChange={(e) => setOccasion(e.target.value)}
+                    onChange={(e) => {
+                      const nextOccasion = e.target.value;
+                      setOccasion(nextOccasion);
+                    }}
                     className="h-12 w-full bg-transparent text-base text-[var(--foreground)] outline-none"
                     required
                   >
@@ -130,7 +135,7 @@ export default function CreateBoard() {
                   </select>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                  This choice now sets the board mood too: colorful birthday, soft farewell, or a polished celebration style.
+                  The board theme is chosen automatically from this event type so the experience stays consistent.
                 </p>
               </div>
 
