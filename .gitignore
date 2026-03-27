@@ -1,0 +1,48 @@
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Root env files
+.env
+.env.*
+
+# Python backend
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/*.db
+
+# Java legacy backend
+api/target/
+
+# Node / Next.js UI
+ui/node_modules/
+ui/.pnp
+ui/.pnp.*
+ui/.yarn/*
+!ui/.yarn/patches
+!ui/.yarn/plugins
+!ui/.yarn/releases
+!ui/.yarn/versions
+ui/coverage/
+ui/.next/
+ui/out/
+ui/build/
+ui/.vercel/
+ui/*.tsbuildinfo
+ui/next-env.d.ts
+
+# UI logs and env files
+ui/npm-debug.log*
+ui/yarn-debug.log*
+ui/yarn-error.log*
+ui/.pnpm-debug.log*
+ui/.env*
+
+# Misc secrets
+*.pem
