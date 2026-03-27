@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fcf8ff;
+  --foreground: #2e2440;
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-strong: rgba(255, 255, 255, 0.94);
+  --border-soft: rgba(135, 104, 187, 0.18);
+  --primary: #8d77b9;
+  --primary-deep: #70569f;
+  --accent: #f3bfd6;
+  --accent-deep: #dc8fb7;
+  --muted: #6f6484;
+  --shadow-soft: 0 24px 60px rgba(120, 88, 160, 0.14);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Trebuchet MS", "Avenir Next", Avenir, system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  background-image:
+    radial-gradient(circle at top left, rgba(243, 191, 214, 0.26), transparent 30%),
+    radial-gradient(circle at 85% 12%, rgba(141, 119, 185, 0.1), transparent 22%),
+    linear-gradient(180deg, #fffdfd 0%, #fdf9ff 45%, #fbf7ff 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(220, 143, 183, 0.28);
+}
+
+.wyshmate-shell {
+  position: relative;
+  background-image:
+    radial-gradient(circle at top left, var(--theme-radial-a, rgba(243, 191, 214, 0.26)), transparent 30%),
+    radial-gradient(circle at 85% 12%, var(--theme-radial-b, rgba(141, 119, 185, 0.1)), transparent 22%),
+    linear-gradient(180deg, var(--theme-top, #fffdfd) 0%, var(--theme-mid, #fdf9ff) 45%, var(--theme-bottom, #fbf7ff) 100%);
+}
+
+.wyshmate-shell::before {
+  content: "";
+  position: fixed;
+  inset: auto auto 8% -8%;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 9999px;
+  background: var(--theme-orb-a, rgba(243, 191, 214, 0.12));
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+.wyshmate-shell::after {
+  content: "";
+  position: fixed;
+  inset: 8% -7% auto auto;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 9999px;
+  background: var(--theme-orb-b, rgba(141, 119, 185, 0.08));
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.wyshmate-card {
+  background: linear-gradient(180deg, var(--theme-card-top, var(--surface-strong)), var(--theme-card-bottom, var(--surface)));
+  border: 1px solid var(--theme-card-border, var(--border-soft));
+  box-shadow: var(--theme-card-shadow, var(--shadow-soft));
+  backdrop-filter: blur(14px);
+}
+
+.ecard-message {
+  opacity: 0;
+  transform: translateY(24px) scale(0.98);
+  animation: ecard-rise 0.7s ease-out forwards;
+}
+
+.ecard-pulse {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: ecard-pulse 2.4s ease-out infinite;
+}
+
+.ecard-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(8px);
+  opacity: 0.42;
+  animation: ecard-float 7s ease-in-out infinite;
+}
+
+.ecard-glow-left {
+  top: -2rem;
+  left: -1rem;
+  width: 11rem;
+  height: 11rem;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ecard-glow-right {
+  right: -1rem;
+  bottom: -2rem;
+  width: 13rem;
+  height: 13rem;
+  background: rgba(255, 255, 255, 0.14);
+  animation-delay: 1.2s;
+}
+
+@keyframes ecard-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ecard-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 26%, transparent);
+  }
+
+  70% {
+    box-shadow: 0 0 0 16px transparent;
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes ecard-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, 14px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecard-message,
+  .ecard-pulse,
+  .ecard-glow {
+    animation: none;
+  }
+
+  .ecard-message {
+    opacity: 1;
+    transform: none;
+  }
+}
