@@ -19,6 +19,7 @@ interface Message {
   id: string;
   authorName: string;
   content: string;
+  imageUrl?: string | null;
   createdAt: string;
 }
 
@@ -61,6 +62,7 @@ export default function AdminBoardPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [authorName, setAuthorName] = useState('');
   const [content, setContent] = useState('');
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingCard, setDownloadingCard] = useState(false);
   const [themeDraft, setThemeDraft] = useState('');
@@ -155,14 +157,21 @@ export default function AdminBoardPage() {
       return;
     }
     try {
+      const formData = new FormData();
+      formData.append('author_name', authorName);
+      formData.append('content', content);
+      if (selectedImage) {
+        formData.append('image', selectedImage);
+      }
+
       const response = await fetch(`http://localhost:8080/boards/${boardId}/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ authorName, content }),
+        body: formData,
       });
       if (response.ok) {
         setAuthorName('');
         setContent('');
+        setSelectedImage(null);
         const messagesResponse = await fetch(`http://localhost:8080/boards/${boardId}/messages`);
         if (messagesResponse.ok) {
           setMessages(await messagesResponse.json());
@@ -341,12 +350,6 @@ export default function AdminBoardPage() {
           className="mb-8 overflow-hidden rounded-[2rem] border border-white/30 px-6 py-8 text-white sm:px-8 lg:px-10"
           style={{ backgroundImage: theme.heroGradient, boxShadow: theme.heroShadow }}
         >
-          <Image
-            src={wordmark}
-            alt="Wyshmate"
-            priority
-            className="mb-6 h-auto w-[180px] brightness-[1.12] contrast-[1.02]"
-          />
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-white/75">
               {theme.heroLabel}
@@ -382,7 +385,7 @@ export default function AdminBoardPage() {
             <h2 className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
               Add a wish
             </h2>
-            <form onSubmit={handleAddMessage} className="mt-6 space-y-5">
+            <form onSubmit={handleAddMessage} className="mt-6 space-y-5" encType="multipart/form-data">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-[var(--foreground)]">
                   Your Name
@@ -406,6 +409,28 @@ export default function AdminBoardPage() {
                   rows={5}
                   required
                 />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[var(--foreground)]">
+                  Photo (Optional)
+                </label>
+                <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-[var(--border-soft)] bg-white/80 px-4 py-4 text-sm text-[var(--muted)] transition hover:bg-white">
+                  <span className="truncate pr-4">
+                    {selectedImage ? selectedImage.name : 'Choose a photo to include with this admin message'}
+                  </span>
+                  <span
+                    className="rounded-full px-3 py-1 font-semibold"
+                    style={{ backgroundColor: theme.accentSoft, color: theme.accentStrong }}
+                  >
+                    Browse
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => setSelectedImage(e.target.files?.[0] ?? null)}
+                  />
+                </label>
               </div>
               <button
                 type="submit"
@@ -576,6 +601,15 @@ export default function AdminBoardPage() {
                   <p className="mt-4 text-base leading-7 text-[var(--foreground)]">
                     {message.content}
                   </p>
+                  {message.imageUrl ? (
+                    <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-[var(--border-soft)] bg-white/85">
+                      <img
+                        src={message.imageUrl}
+                        alt={`Memory shared by ${message.authorName}`}
+                        className="h-52 w-full object-cover"
+                      />
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>

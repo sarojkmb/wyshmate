@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import SiteHeader from "./components/site-header";
 
 export const metadata: Metadata = {
   title: "Wyshmate",
@@ -18,7 +19,8 @@ export default function RootLayout({
       className="h-full antialiased"
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
-        {children}
+        <SiteHeader />
+        <main className="flex-1">{children}</main>
       </body>
     </html>
   );

@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from .config import settings
 from .database import Base, engine
 from .routes import boards_router, messages_router
+
+upload_root = Path(settings.upload_root)
+upload_root.mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
@@ -19,6 +24,12 @@ async def lifespan(_: FastAPI):
             text(
                 "ALTER TABLE boards "
                 "ADD COLUMN IF NOT EXISTS theme VARCHAR(255) NOT NULL DEFAULT 'celebration'"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE messages "
+                "ADD COLUMN IF NOT EXISTS image_url VARCHAR(1024)"
             )
         )
     yield
@@ -33,6 +44,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/uploads", StaticFiles(directory=upload_root), name="uploads")
 
 app.include_router(boards_router)
 app.include_router(messages_router)

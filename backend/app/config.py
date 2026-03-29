@@ -9,11 +9,13 @@ from urllib.parse import quote_plus
 @dataclass(frozen=True)
 class Settings:
     app_name: str = os.getenv("WYSHMATE_APP_NAME", "wyshmate-api")
+    public_base_url: str = os.getenv("WYSHMATE_PUBLIC_BASE_URL", "http://localhost:8080")
     db_host: str = os.getenv("WYSHMATE_DB_HOST", "localhost")
     db_port: int = int(os.getenv("WYSHMATE_DB_PORT", "5432"))
     db_name: str = os.getenv("WYSHMATE_DB_NAME", "wyshmate")
     db_user: str = os.getenv("WYSHMATE_DB_USER", "")
     db_password: str = os.getenv("WYSHMATE_DB_PASSWORD", "")
+    upload_root: str = os.getenv("WYSHMATE_UPLOAD_ROOT", "uploads")
     cors_origins: Tuple[str, ...] = ("*",)
 
     @property

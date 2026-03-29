@@ -1,10 +1,10 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getBoardTheme, getDisplayTitle } from '../../../lib/board-theme';
-import wordmark from '../../../../logo/wyshmate-horizontal.png';
+import logo from '../../../../logo/wyshmate-logo.png';
 
 interface Board {
   id: string;
@@ -18,6 +18,7 @@ interface Message {
   id: string;
   authorName: string;
   content: string;
+  imageUrl?: string | null;
   createdAt: string;
 }
 
@@ -27,6 +28,8 @@ export default function AnimatedECardPage() {
   const [board, setBoard] = useState<Board | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [isFlipping, setIsFlipping] = useState(false);
 
   useEffect(() => {
     if (!boardId) {
@@ -74,11 +77,42 @@ export default function AnimatedECardPage() {
     };
   }, [boardId]);
 
+  const storyPages = useMemo(
+    () =>
+      messages.length
+        ? messages
+        : [{
+            id: 'placeholder',
+            authorName: 'Your guests',
+            content: 'Share this animated e-card link so everyone can enjoy the celebration as messages arrive.',
+            createdAt: new Date().toISOString(),
+          }],
+    [messages],
+  );
+
+  useEffect(() => {
+    if (storyPages.length <= 1) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setIsFlipping(true);
+      window.setTimeout(() => {
+        setCurrentPage((page) => (page + 1) % storyPages.length);
+        setIsFlipping(false);
+      }, 260);
+    }, 4800);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [storyPages.length]);
+
   if (loading) {
     return (
       <div className="wyshmate-shell flex min-h-screen items-center justify-center px-6">
         <div className="wyshmate-card rounded-[2rem] px-8 py-10 text-center">
-          <Image src={wordmark} alt="Wyshmate" className="mx-auto mb-5 h-auto w-[180px]" />
+          <Image src={logo} alt="Wyshmate" className="mx-auto mb-5 h-auto w-20 rounded-3xl" />
           <p className="text-lg font-semibold text-[var(--foreground)]">Preparing animated e-card...</p>
         </div>
       </div>
@@ -89,7 +123,7 @@ export default function AnimatedECardPage() {
     return (
       <div className="wyshmate-shell flex min-h-screen items-center justify-center px-6">
         <div className="wyshmate-card max-w-lg rounded-[2rem] px-8 py-10 text-center">
-          <Image src={wordmark} alt="Wyshmate" className="mx-auto mb-5 h-auto w-[180px]" />
+          <Image src={logo} alt="Wyshmate" className="mx-auto mb-5 h-auto w-20 rounded-3xl" />
           <h1 className="text-2xl font-semibold text-[var(--foreground)]">E-card not available</h1>
           <p className="mt-3 text-base leading-7 text-[var(--muted)]">
             This animated card could not be loaded.
@@ -101,14 +135,23 @@ export default function AnimatedECardPage() {
 
   const theme = getBoardTheme(board.theme, board.occasion);
   const displayTitle = getDisplayTitle(board.title, board.theme, board.occasion, board.recipientName);
-  const spotlightMessages = messages.length
-    ? messages.slice(0, 6)
-    : [{
-        id: 'placeholder',
-        authorName: 'Your guests',
-        content: 'Share this animated e-card link so everyone can enjoy the celebration as messages arrive.',
-        createdAt: new Date().toISOString(),
-      }];
+  const activeMessage = storyPages[currentPage] ?? storyPages[0];
+  const canGoPrev = currentPage > 0;
+  const canGoNext = currentPage < storyPages.length - 1;
+
+  const flipTo = (direction: 'prev' | 'next') => {
+    setIsFlipping(true);
+    window.setTimeout(() => {
+      setCurrentPage((page) => {
+        if (direction === 'prev') {
+          return Math.max(0, page - 1);
+        }
+
+        return Math.min(storyPages.length - 1, page + 1);
+      });
+      setIsFlipping(false);
+    }, 240);
+  };
 
   return (
     <div className="wyshmate-shell min-h-screen px-4 py-8 sm:px-6 lg:px-8" style={theme.shellStyle}>
@@ -120,13 +163,6 @@ export default function AnimatedECardPage() {
           <div className="ecard-glow ecard-glow-left" />
           <div className="ecard-glow ecard-glow-right" />
 
-          <Image
-            src={wordmark}
-            alt="Wyshmate"
-            priority
-            className="relative z-10 mb-6 h-auto w-[180px] brightness-[1.12] contrast-[1.02]"
-          />
-
           <div className="relative z-10 max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/72">
               Animated {theme.heroLabel.toLowerCase()}
@@ -135,40 +171,93 @@ export default function AnimatedECardPage() {
               {displayTitle}
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/84 sm:text-lg">
-              A shareable animated keepsake for {board.recipientName}. Open it, pass it around, and let the wishes set the mood.
+              A shareable slam-book style keepsake for {board.recipientName}. Each page flips through the wishes like a living scrapbook.
             </p>
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/12 px-4 py-2 text-sm font-medium">
               <span>{theme.emoji}</span>
-              <span>{messages.length} {messages.length === 1 ? 'wish' : 'wishes'} collected</span>
+              <span>{storyPages.length} {storyPages.length === 1 ? 'wish' : 'wishes'} collected</span>
             </div>
           </div>
         </section>
 
-        <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {spotlightMessages.map((message, index) => (
-            <article
-              key={message.id}
-              className="wyshmate-card ecard-message relative rounded-[1.9rem] p-6"
-              style={{ animationDelay: `${index * 0.18}s` }}
-            >
-              <div
-                className="mb-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]"
-                style={{ backgroundColor: theme.accentSoft, color: theme.accentStrong }}
+        <section className="mt-8">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: theme.accentStrong }}>
+                Slam Book
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">Flip through every page</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={!canGoPrev}
+                onClick={() => flipTo('prev')}
+                className="inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45"
+                style={{ borderColor: theme.accentSoft, color: theme.accentStrong }}
               >
-                {theme.name}
+                Previous
+              </button>
+              <div className="text-sm font-medium text-[var(--muted)]">
+                Page {currentPage + 1} of {storyPages.length}
               </div>
-              <p className="text-lg leading-8 text-[var(--foreground)]">{message.content}</p>
-              <div className="mt-5 flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-sm font-semibold text-[var(--foreground)]">{message.authorName}</div>
-                  <div className="mt-1 text-xs text-[var(--muted)]">
-                    {new Date(message.createdAt).toLocaleDateString()}
+              <button
+                type="button"
+                disabled={!canGoNext}
+                onClick={() => flipTo('next')}
+                className="inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45"
+                style={{ borderColor: theme.accentSoft, color: theme.accentStrong }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+
+          <div className="ecard-book-shell wyshmate-card rounded-[2.2rem] p-4 sm:p-6">
+            <div className="ecard-book-spine" style={{ background: theme.heroGradient }} />
+            <article className={`ecard-book-page ${isFlipping ? 'ecard-book-page-flipping' : ''}`}>
+              <div className="ecard-book-paper">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: theme.accentStrong }}>
+                      {board.occasion}
+                    </p>
+                    <h3 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{activeMessage.authorName}</h3>
+                  </div>
+                  <div
+                    className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]"
+                    style={{ backgroundColor: theme.accentSoft, color: theme.accentStrong }}
+                  >
+                    {theme.name}
                   </div>
                 </div>
-                <div className="ecard-pulse" style={{ backgroundColor: theme.accent }} />
+
+                {activeMessage.imageUrl ? (
+                  <div className="wishbook-photo-frame mt-6">
+                    <img
+                      src={activeMessage.imageUrl}
+                      alt={`Memory shared by ${activeMessage.authorName}`}
+                      className="wishbook-photo ecard-book-photo"
+                    />
+                  </div>
+                ) : (
+                  <div className="ecard-book-photo-placeholder mt-6" style={{ backgroundImage: theme.heroGradient }}>
+                    <span className="text-4xl">{theme.emoji}</span>
+                    <span>Memory page</span>
+                  </div>
+                )}
+
+                <blockquote className="mt-6 text-lg leading-8 text-[var(--foreground)] sm:text-xl">
+                  “{activeMessage.content}”
+                </blockquote>
+
+                <div className="mt-8 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
+                  <span>— {activeMessage.authorName}</span>
+                  <span>{new Date(activeMessage.createdAt).toLocaleDateString()}</span>
+                </div>
               </div>
             </article>
-          ))}
+          </div>
         </section>
       </div>
     </div>

@@ -1,10 +1,8 @@
 'use client';
 
-import Image from 'next/image';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { deriveThemeFromOccasion, getBoardTheme } from '../lib/board-theme';
-import wordmark from '../../logo/wyshmate-horizontal.png';
 
 interface Board {
   id: string;
@@ -46,16 +44,10 @@ export default function CreateBoard() {
   };
 
   return (
-    <div className="wyshmate-shell min-h-screen px-4 py-10 sm:px-6 lg:px-8" style={selectedTheme.shellStyle}>
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center">
+    <div className="wyshmate-shell min-h-full px-4 py-10 sm:px-6 lg:px-8" style={selectedTheme.shellStyle}>
+      <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-6xl items-center">
         <div className="grid w-full gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <section className="flex flex-col justify-center px-2 py-4">
-            <Image
-              src={wordmark}
-              alt="Wyshmate"
-              priority
-              className="mb-8 h-auto w-[280px] sm:w-[340px]"
-            />
             <h1 className="max-w-xl text-4xl font-semibold leading-tight text-[var(--foreground)] sm:text-5xl">
               Create a beautiful board for every celebration.
             </h1>
