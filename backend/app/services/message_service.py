@@ -17,6 +17,7 @@ def add_message(db: Session, board_id: uuid.UUID, payload: CreateMessageRequest)
         author_name=payload.author_name,
         content=payload.content,
         image_url=payload.image_url,
+        video_url=payload.video_url,
     )
     db.add(message)
     db.commit()

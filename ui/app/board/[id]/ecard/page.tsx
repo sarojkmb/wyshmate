@@ -3,8 +3,9 @@
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Wishbook, { WishbookPage } from '../../../components/wishbook';
 import { getBoardTheme, getDisplayTitle } from '../../../lib/board-theme';
-import logo from '../../../../logo/wyshmate-logo.png';
+import logo from '../../../../logo/wishmate-logo.png';
 
 interface Board {
   id: string;
@@ -19,6 +20,7 @@ interface Message {
   authorName: string;
   content: string;
   imageUrl?: string | null;
+  videoUrl?: string | null;
   createdAt: string;
 }
 
@@ -85,20 +87,48 @@ export default function AnimatedECardPage() {
             id: 'placeholder',
             authorName: 'Your guests',
             content: 'Share this animated e-card link so everyone can enjoy the celebration as messages arrive.',
+            videoUrl: null,
             createdAt: new Date().toISOString(),
           }],
     [messages],
   );
 
+  const occasion = board?.occasion ?? 'Celebration';
+  const themeKey = board?.theme ?? 'golden-glow';
+  const recipientName = board?.recipientName ?? 'someone special';
+  const title = board?.title ?? '';
+  const theme = getBoardTheme(themeKey, occasion);
+  const displayTitle = getDisplayTitle(title, themeKey, occasion, recipientName);
+  const wishbookPages = useMemo<WishbookPage[]>(
+    () => [
+      {
+        kind: 'cover',
+        title: displayTitle,
+        subtitle: `A shareable keepsake for ${recipientName}. Open the cover and flip through every wish one page at a time.`,
+      },
+      ...storyPages.map((message) => ({
+        kind: 'message' as const,
+        author: message.authorName,
+        wish: message.content,
+        image: message.imageUrl ?? null,
+        video: message.videoUrl ?? null,
+        dateLabel: new Date(message.createdAt).toLocaleDateString(),
+      })),
+    ],
+    [displayTitle, recipientName, storyPages],
+  );
+  const canGoPrev = currentPage > 0;
+  const canGoNext = currentPage < wishbookPages.length - 1;
+
   useEffect(() => {
-    if (storyPages.length <= 1) {
+    if (wishbookPages.length <= 1) {
       return;
     }
 
     const interval = window.setInterval(() => {
       setIsFlipping(true);
       window.setTimeout(() => {
-        setCurrentPage((page) => (page + 1) % storyPages.length);
+        setCurrentPage((page) => (page + 1) % wishbookPages.length);
         setIsFlipping(false);
       }, 260);
     }, 4800);
@@ -106,7 +136,7 @@ export default function AnimatedECardPage() {
     return () => {
       window.clearInterval(interval);
     };
-  }, [storyPages.length]);
+  }, [wishbookPages.length]);
 
   if (loading) {
     return (
@@ -133,12 +163,6 @@ export default function AnimatedECardPage() {
     );
   }
 
-  const theme = getBoardTheme(board.theme, board.occasion);
-  const displayTitle = getDisplayTitle(board.title, board.theme, board.occasion, board.recipientName);
-  const activeMessage = storyPages[currentPage] ?? storyPages[0];
-  const canGoPrev = currentPage > 0;
-  const canGoNext = currentPage < storyPages.length - 1;
-
   const flipTo = (direction: 'prev' | 'next') => {
     setIsFlipping(true);
     window.setTimeout(() => {
@@ -147,7 +171,7 @@ export default function AnimatedECardPage() {
           return Math.max(0, page - 1);
         }
 
-        return Math.min(storyPages.length - 1, page + 1);
+        return Math.min(wishbookPages.length - 1, page + 1);
       });
       setIsFlipping(false);
     }, 240);
@@ -171,11 +195,11 @@ export default function AnimatedECardPage() {
               {displayTitle}
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/84 sm:text-lg">
-              A shareable slam-book style keepsake for {board.recipientName}. Each page flips through the wishes like a living scrapbook.
+              A shareable slam-book style keepsake for {recipientName}. Each page flips through the wishes like a living scrapbook.
             </p>
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/12 px-4 py-2 text-sm font-medium">
               <span>{theme.emoji}</span>
-              <span>{storyPages.length} {storyPages.length === 1 ? 'wish' : 'wishes'} collected</span>
+              <span>{messages.length} {messages.length === 1 ? 'wish' : 'wishes'} collected</span>
             </div>
           </div>
         </section>
@@ -196,10 +220,10 @@ export default function AnimatedECardPage() {
                 className="inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45"
                 style={{ borderColor: theme.accentSoft, color: theme.accentStrong }}
               >
-                Previous
+                ←
               </button>
               <div className="text-sm font-medium text-[var(--muted)]">
-                Page {currentPage + 1} of {storyPages.length}
+                Page {currentPage + 1} of {wishbookPages.length}
               </div>
               <button
                 type="button"
@@ -208,55 +232,24 @@ export default function AnimatedECardPage() {
                 className="inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45"
                 style={{ borderColor: theme.accentSoft, color: theme.accentStrong }}
               >
-                Next
+                →
               </button>
             </div>
           </div>
 
-          <div className="ecard-book-shell wyshmate-card rounded-[2.2rem] p-4 sm:p-6">
-            <div className="ecard-book-spine" style={{ background: theme.heroGradient }} />
-            <article className={`ecard-book-page ${isFlipping ? 'ecard-book-page-flipping' : ''}`}>
-              <div className="ecard-book-paper">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: theme.accentStrong }}>
-                      {board.occasion}
-                    </p>
-                    <h3 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{activeMessage.authorName}</h3>
-                  </div>
-                  <div
-                    className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]"
-                    style={{ backgroundColor: theme.accentSoft, color: theme.accentStrong }}
-                  >
-                    {theme.name}
-                  </div>
-                </div>
-
-                {activeMessage.imageUrl ? (
-                  <div className="wishbook-photo-frame mt-6">
-                    <img
-                      src={activeMessage.imageUrl}
-                      alt={`Memory shared by ${activeMessage.authorName}`}
-                      className="wishbook-photo ecard-book-photo"
-                    />
-                  </div>
-                ) : (
-                  <div className="ecard-book-photo-placeholder mt-6" style={{ backgroundImage: theme.heroGradient }}>
-                    <span className="text-4xl">{theme.emoji}</span>
-                    <span>Memory page</span>
-                  </div>
-                )}
-
-                <blockquote className="mt-6 text-lg leading-8 text-[var(--foreground)] sm:text-xl">
-                  “{activeMessage.content}”
-                </blockquote>
-
-                <div className="mt-8 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
-                  <span>— {activeMessage.authorName}</span>
-                  <span>{new Date(activeMessage.createdAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-            </article>
+          <div className={`transition duration-300 ${isFlipping ? 'scale-[0.992] opacity-95' : 'scale-100 opacity-100'}`}>
+            <Wishbook
+              accent={theme.accent}
+              accentSoft={theme.accentSoft}
+              accentStrong={theme.accentStrong}
+              gradient={theme.heroGradient}
+              title={displayTitle}
+              maxWidthClass="max-w-3xl"
+              pages={wishbookPages}
+              pageIndex={currentPage}
+              onPageChange={setCurrentPage}
+              enableSwipe
+            />
           </div>
         </section>
       </div>

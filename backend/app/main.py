@@ -32,6 +32,12 @@ async def lifespan(_: FastAPI):
                 "ADD COLUMN IF NOT EXISTS image_url VARCHAR(1024)"
             )
         )
+        connection.execute(
+            text(
+                "ALTER TABLE messages "
+                "ADD COLUMN IF NOT EXISTS video_url VARCHAR(1024)"
+            )
+        )
     yield
 
 

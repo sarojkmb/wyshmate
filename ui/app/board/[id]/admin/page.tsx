@@ -1,10 +1,10 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { getBoardTheme, getDisplayTitle, themeOptions } from '../../../lib/board-theme';
-import wordmark from '../../../../logo/wyshmate-horizontal.png';
+import { getBoardTheme, getDisplayTitle } from '../../../lib/board-theme';
+import wordmark from '../../../../logo/wishmate-horizontal.png';
 
 interface Board {
   id: string;
@@ -20,6 +20,7 @@ interface Message {
   authorName: string;
   content: string;
   imageUrl?: string | null;
+  videoUrl?: string | null;
   createdAt: string;
 }
 
@@ -63,10 +64,17 @@ export default function AdminBoardPage() {
   const [authorName, setAuthorName] = useState('');
   const [content, setContent] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingCard, setDownloadingCard] = useState(false);
-  const [themeDraft, setThemeDraft] = useState('');
-  const [updatingTheme, setUpdatingTheme] = useState(false);
+  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [mediaError, setMediaError] = useState('');
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     if (!token || !boardId) {
@@ -92,7 +100,6 @@ export default function AdminBoardPage() {
         if (boardResponse.ok) {
           const data = await boardResponse.json();
           setBoard(data);
-          setThemeDraft(data.theme);
         } else {
           setBoard(null);
         }
@@ -122,34 +129,28 @@ export default function AdminBoardPage() {
     };
   }, [boardId, token]);
 
-  const handleThemeChange = async (nextTheme: string) => {
-    if (!board) {
-      return;
-    }
-
-    setThemeDraft(nextTheme);
-    setUpdatingTheme(true);
-
-    try {
-      const response = await fetch(`http://localhost:8080/boards/${boardId}/theme?token=${token}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: nextTheme }),
-      });
-
-      if (response.ok) {
-        const updatedBoard: Board = await response.json();
-        setBoard(updatedBoard);
-        setThemeDraft(updatedBoard.theme);
-      } else {
-        alert('Failed to update theme');
-      }
-    } catch (error) {
-      alert('Error updating theme');
-    } finally {
-      setUpdatingTheme(false);
-    }
+  const stopCamera = () => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    mediaRecorderRef.current = null;
+    setIsCameraOpen(false);
+    setIsRecordingVideo(false);
   };
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+    };
+  }, [videoPreviewUrl]);
+
+  useEffect(() => {
+    if (videoPreviewRef.current && cameraStreamRef.current && isCameraOpen) {
+      videoPreviewRef.current.srcObject = cameraStreamRef.current;
+    }
+  }, [isCameraOpen]);
 
   const handleAddMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +164,9 @@ export default function AdminBoardPage() {
       if (selectedImage) {
         formData.append('image', selectedImage);
       }
+      if (selectedVideo) {
+        formData.append('video', selectedVideo);
+      }
 
       const response = await fetch(`http://localhost:8080/boards/${boardId}/messages`, {
         method: 'POST',
@@ -172,15 +176,73 @@ export default function AdminBoardPage() {
         setAuthorName('');
         setContent('');
         setSelectedImage(null);
+        setSelectedVideo(null);
+        if (videoPreviewUrl) {
+          URL.revokeObjectURL(videoPreviewUrl);
+        }
+        setVideoPreviewUrl(null);
         const messagesResponse = await fetch(`http://localhost:8080/boards/${boardId}/messages`);
         if (messagesResponse.ok) {
           setMessages(await messagesResponse.json());
         }
       } else {
-        alert('Failed to add message');
+        const error = await response.json().catch(() => null);
+        alert(error?.detail || 'Failed to add message');
       }
     } catch (error) {
       alert('Error adding message');
+    }
+  };
+
+  const beginVideoRecording = async () => {
+    setMediaError('');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      cameraStreamRef.current = stream;
+      setIsCameraOpen(true);
+
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'video/webm' });
+        const file = new File([blob], `wyshmate-admin-memory-${Date.now()}.webm`, {
+          type: blob.type || 'video/webm',
+        });
+
+        if (videoPreviewUrl) {
+          URL.revokeObjectURL(videoPreviewUrl);
+        }
+
+        setSelectedImage(null);
+        setSelectedVideo(file);
+        setVideoPreviewUrl(URL.createObjectURL(file));
+        stopCamera();
+      };
+
+      recorder.start();
+      setIsRecordingVideo(true);
+    } catch {
+      setMediaError('Camera access was not available. You can still upload a video instead.');
+      stopCamera();
+    }
+  };
+
+  const stopVideoRecording = () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    } else {
+      stopCamera();
     }
   };
 
@@ -428,9 +490,89 @@ export default function AdminBoardPage() {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => setSelectedImage(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      setSelectedImage(e.target.files?.[0] ?? null);
+                      setSelectedVideo(null);
+                      if (videoPreviewUrl) {
+                        URL.revokeObjectURL(videoPreviewUrl);
+                        setVideoPreviewUrl(null);
+                      }
+                      stopCamera();
+                    }}
                   />
                 </label>
+              </div>
+              <div className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white/72 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <label className="block text-sm font-semibold text-[var(--foreground)]">
+                      Video (Optional)
+                    </label>
+                    <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                      Record a greeting live or upload a short clip. Images and videos are stored in separate board folders for cleaner cloud migration later.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <label
+                      className="inline-flex cursor-pointer items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition"
+                      style={{ borderColor: theme.accentSoft, color: theme.accentStrong, backgroundColor: 'white' }}
+                    >
+                      Upload Video
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        className="hidden"
+                        onChange={(e) => {
+                          const nextVideo = e.target.files?.[0] ?? null;
+                          setSelectedVideo(nextVideo);
+                          setSelectedImage(null);
+                          stopCamera();
+                          if (videoPreviewUrl) {
+                            URL.revokeObjectURL(videoPreviewUrl);
+                          }
+                          setVideoPreviewUrl(nextVideo ? URL.createObjectURL(nextVideo) : null);
+                        }}
+                      />
+                    </label>
+                    {!isRecordingVideo ? (
+                      <button
+                        type="button"
+                        onClick={beginVideoRecording}
+                        className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-white transition"
+                        style={{ backgroundColor: theme.accent, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
+                      >
+                        Record Video
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={stopVideoRecording}
+                        className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-white transition"
+                        style={{ backgroundColor: theme.accentStrong, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
+                      >
+                        Stop Recording
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {mediaError ? (
+                  <p className="mt-3 text-sm font-medium" style={{ color: theme.accentStrong }}>
+                    {mediaError}
+                  </p>
+                ) : null}
+
+                {isCameraOpen ? (
+                  <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-[var(--border-soft)] bg-[#120f16]">
+                    <video ref={videoPreviewRef} autoPlay muted playsInline className="h-64 w-full object-cover" />
+                  </div>
+                ) : null}
+
+                {videoPreviewUrl ? (
+                  <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-[var(--border-soft)] bg-white/90">
+                    <video src={videoPreviewUrl} controls playsInline className="h-64 w-full object-cover" />
+                  </div>
+                ) : null}
               </div>
               <button
                 type="submit"
@@ -445,15 +587,15 @@ export default function AdminBoardPage() {
           <section className="space-y-4">
             <div
               className="wyshmate-card rounded-[2rem] p-5 sm:p-6"
-              title="Choose the visual style for the board. This updates the public page, admin page, animated card, and downloaded e-card."
+              title="Wyshmate now uses one consistent visual style across the public page, admin page, animated card, and downloaded e-card."
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: theme.accentStrong }}>
-                    Theme
+                    Style
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-                    Board style
+                    Wyshmate look
                   </h2>
                 </div>
                 <div
@@ -463,21 +605,8 @@ export default function AdminBoardPage() {
                   {theme.name}
                 </div>
               </div>
-              <select
-                value={themeDraft}
-                onChange={(e) => handleThemeChange(e.target.value)}
-                disabled={updatingTheme}
-                title="Pick a visual theme for this board."
-                className="mt-4 h-12 w-full rounded-2xl border border-[var(--border-soft)] bg-white px-4 text-base text-[var(--foreground)] outline-none transition disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {themeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.emoji} {option.label}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-3 text-sm text-[var(--muted)]">
-                {updatingTheme ? 'Updating style...' : 'Hover cards for details'}
+              <div className="mt-4 rounded-2xl border border-[var(--border-soft)] bg-white px-4 py-4 text-sm leading-6 text-[var(--muted)]">
+                Every board now keeps the same signature Wyshmate colors, so the experience feels consistent everywhere while the occasion still shapes the wording and mood.
               </div>
             </div>
 
@@ -606,6 +735,17 @@ export default function AdminBoardPage() {
                       <img
                         src={message.imageUrl}
                         alt={`Memory shared by ${message.authorName}`}
+                        className="h-52 w-full object-cover"
+                      />
+                    </div>
+                  ) : null}
+                  {message.videoUrl ? (
+                    <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-[var(--border-soft)] bg-white/85">
+                      <video
+                        src={message.videoUrl}
+                        controls
+                        playsInline
+                        preload="metadata"
                         className="h-52 w-full object-cover"
                       />
                     </div>

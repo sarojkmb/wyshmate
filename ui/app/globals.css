@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fcf8ff;
-  --foreground: #2e2440;
-  --surface: rgba(255, 255, 255, 0.82);
-  --surface-strong: rgba(255, 255, 255, 0.94);
-  --border-soft: rgba(135, 104, 187, 0.18);
-  --primary: #8d77b9;
-  --primary-deep: #70569f;
-  --accent: #f3bfd6;
-  --accent-deep: #dc8fb7;
-  --muted: #6f6484;
-  --shadow-soft: 0 24px 60px rgba(120, 88, 160, 0.14);
+  --background: #e7f3f8;
+  --foreground: #1f3340;
+  --surface: rgba(255, 255, 255, 0.84);
+  --surface-strong: rgba(255, 255, 255, 0.95);
+  --border-soft: rgba(45, 127, 163, 0.16);
+  --primary: #2d7fa3;
+  --primary-deep: #246785;
+  --accent: #f5c867;
+  --accent-deep: #b9851b;
+  --muted: #5f7380;
+  --shadow-soft: 0 24px 60px rgba(45, 127, 163, 0.12);
 }
 
 @theme inline {
@@ -35,9 +35,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   background-image:
-    radial-gradient(circle at top left, rgba(243, 191, 214, 0.26), transparent 30%),
-    radial-gradient(circle at 85% 12%, rgba(141, 119, 185, 0.1), transparent 22%),
-    linear-gradient(180deg, #fffdfd 0%, #fdf9ff 45%, #fbf7ff 100%);
+    radial-gradient(circle at top left, rgba(116, 193, 223, 0.22), transparent 30%),
+    radial-gradient(circle at 85% 12%, rgba(245, 200, 103, 0.18), transparent 22%),
+    linear-gradient(180deg, #fdfefe 0%, #edf6fa 45%, #e7f3f8 100%);
 }
 
 a {
@@ -52,9 +52,9 @@ a {
 .wyshmate-shell {
   position: relative;
   background-image:
-    radial-gradient(circle at top left, var(--theme-radial-a, rgba(243, 191, 214, 0.26)), transparent 30%),
-    radial-gradient(circle at 85% 12%, var(--theme-radial-b, rgba(141, 119, 185, 0.1)), transparent 22%),
-    linear-gradient(180deg, var(--theme-top, #fffdfd) 0%, var(--theme-mid, #fdf9ff) 45%, var(--theme-bottom, #fbf7ff) 100%);
+    radial-gradient(circle at top left, var(--theme-radial-a, rgba(116, 193, 223, 0.22)), transparent 30%),
+    radial-gradient(circle at 85% 12%, var(--theme-radial-b, rgba(245, 200, 103, 0.16)), transparent 22%),
+    linear-gradient(180deg, var(--theme-top, #fdfefe) 0%, var(--theme-mid, #edf6fa) 45%, var(--theme-bottom, #e7f3f8) 100%);
 }
 
 .wyshmate-shell::before {
@@ -64,7 +64,7 @@ a {
   width: 18rem;
   height: 18rem;
   border-radius: 9999px;
-  background: var(--theme-orb-a, rgba(243, 191, 214, 0.12));
+  background: var(--theme-orb-a, rgba(116, 193, 223, 0.12));
   filter: blur(28px);
   pointer-events: none;
 }
@@ -76,7 +76,7 @@ a {
   width: 22rem;
   height: 22rem;
   border-radius: 9999px;
-  background: var(--theme-orb-b, rgba(141, 119, 185, 0.08));
+  background: var(--theme-orb-b, rgba(245, 200, 103, 0.1));
   filter: blur(30px);
   pointer-events: none;
 }
@@ -209,6 +209,22 @@ a {
   object-fit: cover;
 }
 
+.wishbook-photo-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 21rem;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 247, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+.wishbook-photo-contained {
+  max-height: 19rem;
+  object-fit: contain;
+  object-position: center;
+}
+
 .ecard-book-shell {
   position: relative;
   overflow: hidden;
@@ -302,6 +318,26 @@ a {
 }
 
 @media (max-width: 640px) {
+  .wyshmate-shell::before,
+  .wyshmate-shell::after {
+    width: 12rem;
+    height: 12rem;
+    filter: blur(22px);
+  }
+
+  .wishbook-photo {
+    max-height: 14rem;
+  }
+
+  .wishbook-photo-stage {
+    min-height: 16rem;
+    padding: 0.75rem;
+  }
+
+  .wishbook-photo-contained {
+    max-height: 14rem;
+  }
+
   .ecard-book-spine {
     display: none;
   }

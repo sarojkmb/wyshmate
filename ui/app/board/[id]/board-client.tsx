@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Wishbook, { WishbookPage } from '../../components/wishbook';
 import { getPromptsForOccasion } from '../../prompts';
 import { getBoardTheme, getDisplayTitle } from '../../lib/board-theme';
 
@@ -17,6 +18,7 @@ export interface Message {
   authorName: string;
   content: string;
   imageUrl?: string | null;
+  videoUrl?: string | null;
   createdAt: string;
 }
 
@@ -25,12 +27,12 @@ interface BoardClientProps {
   initialMessages: Message[];
 }
 
-function clampPageIndex(index: number, messageCount: number) {
-  if (messageCount <= 1) {
+function clampPageIndex(index: number, pageCount: number) {
+  if (pageCount <= 1) {
     return 0;
   }
 
-  const maxIndex = Math.max(0, messageCount - 1);
+  const maxIndex = Math.max(0, pageCount - 1);
   return Math.min(Math.max(0, index), maxIndex);
 }
 
@@ -39,17 +41,41 @@ export default function BoardClient({ board, initialMessages }: BoardClientProps
   const [authorName, setAuthorName] = useState('');
   const [content, setContent] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [showPrompts, setShowPrompts] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [mediaError, setMediaError] = useState('');
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const theme = getBoardTheme(board.theme, board.occasion);
   const displayTitle = getDisplayTitle(board.title, board.theme, board.occasion, board.recipientName);
   const prompts = useMemo(() => getPromptsForOccasion(board.occasion), [board.occasion]);
-  const leftPage = messages[currentPage] ?? null;
-  const rightPage = messages[currentPage + 1] ?? null;
+  const bookPages = useMemo<WishbookPage[]>(
+    () => [
+      {
+        kind: 'cover',
+        title: displayTitle,
+        subtitle: `A keepsake wishbook for ${board.recipientName}. Open the cover and flip through every memory one page at a time.`,
+      },
+      ...messages.map((message) => ({
+        kind: 'message' as const,
+        author: message.authorName,
+        wish: message.content,
+        image: message.imageUrl ?? null,
+        video: message.videoUrl ?? null,
+        dateLabel: new Date(message.createdAt).toLocaleDateString(),
+      })),
+    ],
+    [board.recipientName, displayTitle, messages],
+  );
   const publicPath = `/board/${board.id}`;
 
   const handleAddMessage = async (e: React.FormEvent) => {
@@ -65,6 +91,9 @@ export default function BoardClient({ board, initialMessages }: BoardClientProps
       if (selectedImage) {
         formData.append('image', selectedImage);
       }
+      if (selectedVideo) {
+        formData.append('video', selectedVideo);
+      }
 
       const response = await fetch(`http://localhost:8080/boards/${board.id}/messages`, {
         method: 'POST',
@@ -72,20 +101,27 @@ export default function BoardClient({ board, initialMessages }: BoardClientProps
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add message');
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.detail || 'Failed to add message');
       }
 
       const createdMessage = (await response.json()) as Message;
       const nextMessages = [...messages, createdMessage];
+      const nextPageCount = nextMessages.length + 1;
 
       setMessages(nextMessages);
       setAuthorName('');
       setContent('');
       setSelectedImage(null);
-      setFeedback(selectedImage ? 'Wish and photo added to the book.' : 'Wish added to the book.');
-      setCurrentPage(clampPageIndex(nextMessages.length - 1, nextMessages.length));
-    } catch {
-      setFeedback('We could not add this wish right now. Please try again.');
+      setSelectedVideo(null);
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+      setVideoPreviewUrl(null);
+      setFeedback(selectedVideo ? 'Wish and video added to the book.' : selectedImage ? 'Wish and photo added to the book.' : 'Wish added to the book.');
+      setCurrentPage(clampPageIndex(nextPageCount - 1, nextPageCount));
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'We could not add this wish right now. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -96,31 +132,84 @@ export default function BoardClient({ board, initialMessages }: BoardClientProps
     setFeedback('Public link copied to clipboard.');
   };
 
-  const goPrev = () => {
-    setCurrentPage((page) => clampPageIndex(page - 1, messages.length));
-  };
-
-  const goNext = () => {
-    setCurrentPage((page) => clampPageIndex(page + 1, messages.length));
-  };
-
   const handlePromptClick = (prompt: string) => {
     setContent(prompt);
     setShowPrompts(false);
   };
 
-  const handleTouchEnd = (clientX: number) => {
-    if (touchStartX === null) {
-      return;
-    }
+  const stopCamera = () => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    mediaRecorderRef.current = null;
+    setIsCameraOpen(false);
+    setIsRecordingVideo(false);
+  };
 
-    const delta = clientX - touchStartX;
-    if (delta > 55) {
-      goPrev();
-    } else if (delta < -55) {
-      goNext();
+  useEffect(() => {
+    return () => {
+      stopCamera();
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+    };
+  }, [videoPreviewUrl]);
+
+  useEffect(() => {
+    if (videoPreviewRef.current && cameraStreamRef.current && isCameraOpen) {
+      videoPreviewRef.current.srcObject = cameraStreamRef.current;
     }
-    setTouchStartX(null);
+  }, [isCameraOpen]);
+
+  const beginVideoRecording = async () => {
+    setMediaError('');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      cameraStreamRef.current = stream;
+      setIsCameraOpen(true);
+
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'video/webm' });
+        const file = new File([blob], `wyshmate-memory-${Date.now()}.webm`, {
+          type: blob.type || 'video/webm',
+        });
+
+        if (videoPreviewUrl) {
+          URL.revokeObjectURL(videoPreviewUrl);
+        }
+
+        setSelectedImage(null);
+        setSelectedVideo(file);
+        setVideoPreviewUrl(URL.createObjectURL(file));
+        stopCamera();
+      };
+
+      recorder.start();
+      setIsRecordingVideo(true);
+    } catch {
+      setMediaError('Camera access was not available. You can still upload a video instead.');
+      stopCamera();
+    }
+  };
+
+  const stopVideoRecording = () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    } else {
+      stopCamera();
+    }
   };
 
   return (
@@ -253,9 +342,89 @@ export default function BoardClient({ board, initialMessages }: BoardClientProps
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => setSelectedImage(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      setSelectedImage(e.target.files?.[0] ?? null);
+                      setSelectedVideo(null);
+                      if (videoPreviewUrl) {
+                        URL.revokeObjectURL(videoPreviewUrl);
+                        setVideoPreviewUrl(null);
+                      }
+                      stopCamera();
+                    }}
                   />
                 </label>
+              </div>
+              <div className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white/72 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <label className="block text-sm font-semibold text-[var(--foreground)]">
+                      Video (Optional)
+                    </label>
+                    <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                      Upload a clip or record one live. Videos are stored separately from images so the media layer can switch cleanly to cloud storage later.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <label
+                      className="inline-flex cursor-pointer items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition"
+                      style={{ borderColor: theme.accentSoft, color: theme.accentStrong, backgroundColor: 'white' }}
+                    >
+                      Upload Video
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        className="hidden"
+                        onChange={(e) => {
+                          const nextVideo = e.target.files?.[0] ?? null;
+                          setSelectedVideo(nextVideo);
+                          setSelectedImage(null);
+                          stopCamera();
+                          if (videoPreviewUrl) {
+                            URL.revokeObjectURL(videoPreviewUrl);
+                          }
+                          setVideoPreviewUrl(nextVideo ? URL.createObjectURL(nextVideo) : null);
+                        }}
+                      />
+                    </label>
+                    {!isRecordingVideo ? (
+                      <button
+                        type="button"
+                        onClick={beginVideoRecording}
+                        className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-white transition"
+                        style={{ backgroundColor: theme.accent, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
+                      >
+                        Record Video
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={stopVideoRecording}
+                        className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-white transition"
+                        style={{ backgroundColor: theme.accentStrong, boxShadow: `0 14px 30px ${theme.accentSoft}` }}
+                      >
+                        Stop Recording
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {mediaError ? (
+                  <p className="mt-3 text-sm font-medium" style={{ color: theme.accentStrong }}>
+                    {mediaError}
+                  </p>
+                ) : null}
+
+                {isCameraOpen ? (
+                  <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-[var(--border-soft)] bg-[#120f16]">
+                    <video ref={videoPreviewRef} autoPlay muted playsInline className="h-64 w-full object-cover" />
+                  </div>
+                ) : null}
+
+                {videoPreviewUrl ? (
+                  <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-[var(--border-soft)] bg-white/90">
+                    <video src={videoPreviewUrl} controls playsInline className="h-64 w-full object-cover" />
+                  </div>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-4">
                 <button
@@ -315,98 +484,25 @@ export default function BoardClient({ board, initialMessages }: BoardClientProps
                 Each wish becomes its own page, making the board feel more like a keepsake than a message list.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={goPrev}
-                disabled={currentPage === 0 || messages.length === 0}
-                className="inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45"
-                style={{ borderColor: theme.accentSoft, color: theme.accentStrong }}
-              >
-                Previous
-              </button>
-              <div className="text-sm font-medium text-[var(--muted)]">
-                {messages.length === 0
-                  ? 'No pages yet'
-                  : `Page ${currentPage + 1}${rightPage ? `-${currentPage + 2}` : ''} of ${messages.length}`}
-              </div>
-              <button
-                type="button"
-                onClick={goNext}
-                disabled={messages.length === 0 || currentPage >= messages.length - 1}
-                className="inline-flex h-11 items-center justify-center rounded-full border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45"
-                style={{ borderColor: theme.accentSoft, color: theme.accentStrong }}
-              >
-                Next
-              </button>
+            <div className="text-sm font-medium text-[var(--muted)]">
+              Page {currentPage + 1} of {bookPages.length}
             </div>
           </div>
 
-          {messages.length === 0 ? (
-            <div className="mt-6 rounded-[1.75rem] border border-dashed border-[var(--border-soft)] bg-white/70 px-6 py-12 text-center">
-              <p className="text-lg font-semibold text-[var(--foreground)]">No pages yet.</p>
-              <p className="mt-3 text-base leading-7 text-[var(--muted)]">
-                The first wish will open the book and set the tone for everyone else.
-              </p>
-            </div>
-          ) : (
-            <div
-              className="wishbook mt-6"
-              onTouchStart={(e) => setTouchStartX(e.changedTouches[0]?.clientX ?? null)}
-              onTouchEnd={(e) => handleTouchEnd(e.changedTouches[0]?.clientX ?? 0)}
-            >
-              <div className="wishbook-spread">
-                {[leftPage, rightPage].map((message, index) =>
-                  message ? (
-                    <article
-                      key={message.id}
-                      className={`wishbook-page ${index === 0 ? 'wishbook-page-left' : 'wishbook-page-right'}`}
-                    >
-                      <div className="wishbook-page-inner">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: theme.accentStrong }}>
-                              {board.occasion}
-                            </p>
-                            <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-                              {message.authorName}
-                            </h3>
-                          </div>
-                          <div
-                            className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]"
-                            style={{ backgroundColor: theme.accentSoft, color: theme.accentStrong }}
-                          >
-                            Page {currentPage + index + 1}
-                          </div>
-                        </div>
-
-                        {message.imageUrl ? (
-                          <div className="wishbook-photo-frame mt-5">
-                            <img
-                              src={message.imageUrl}
-                              alt={`Memory shared by ${message.authorName}`}
-                              className="wishbook-photo"
-                            />
-                          </div>
-                        ) : null}
-
-                        <blockquote className="mt-5 text-lg leading-8 text-[var(--foreground)]">
-                          “{message.content}”
-                        </blockquote>
-
-                        <div className="mt-6 flex items-center justify-between gap-4 text-sm text-[var(--muted)]">
-                          <span>— {message.authorName}</span>
-                          <span>{new Date(message.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </article>
-                  ) : (
-                    <div key={`blank-${index}`} className="wishbook-page wishbook-page-blank" />
-                  ),
-                )}
-              </div>
-            </div>
-          )}
+          <div className="wishbook mt-6">
+            <Wishbook
+              accent={theme.accent}
+              accentSoft={theme.accentSoft}
+              accentStrong={theme.accentStrong}
+              gradient={theme.heroGradient}
+              title={displayTitle}
+              maxWidthClass="max-w-3xl"
+              pages={bookPages}
+              pageIndex={currentPage}
+              onPageChange={setCurrentPage}
+              enableSwipe
+            />
+          </div>
         </section>
       </div>
     </div>
